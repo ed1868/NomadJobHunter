@@ -29,7 +29,15 @@ print(email)
 
 chrome_driver_path = os.environ["CHROMEDRIVER_PATH"]
 
+def abort_application():
+    # Click Close Button
+    close_button = driver.find_element(by=By.CLASS_NAME, value="artdeco-modal__dismiss")
+    close_button.click()
 
+    time.sleep(2)
+    # Click Discard Button
+    discard_button = driver.find_elements(by=By.CLASS_NAME, value="artdeco-modal__confirm-dialog-btn")[1]
+    discard_button.click()
         
 def user_sign_in(driver,email,pw,phone):
     wait = WebDriverWait(driver, 10)  
@@ -76,18 +84,56 @@ def apply_to_jobs(driver,all_listings):
     for listing in all_listings:
         print("Listing Opening...")
         print(listing)
-        listing.click()
+        driver.execute_script("arguments[0].scrollIntoView(true);", listing)
+        try:
+            wait.until(EC.element_to_be_clickable(listing))
+            listing.click()
+        except ElementClickInterceptedException:
+            driver.execute_script("arguments[0].click();", listing)
         time.sleep(2)
-    
-def abort_application():
-    # Click Close Button
-    close_button = driver.find_element(by=By.CLASS_NAME, value="artdeco-modal__dismiss")
-    close_button.click()
+        try:
+            # Click Apply Button
+            apply_button = driver.find_element(by=By.CSS_SELECTOR, value=".jobs-s-apply button")
+            apply_button.click()
+            # Insert Phone Number
+            # Find an <input> element where the id contains phoneNumber
+            time.sleep(5)
+            phone_input = driver.find_element(by=By.CSS_SELECTOR, value="input[id*=phoneNumber]")
+            if phone_input.text == "":
+                phone_input.clear()
+                time.sleep(1)
+                phone_input.send_keys(phone)
+            else:
+                print("COULD NOT GET PHONE INPUT FIELD")
+            
+            # Check the Submit Button
+            submit_button = driver.find_element(by=By.CSS_SELECTOR, value="artdeco-button")
+            if submit_button.get_attribute("data-control-name") == "continue_unify":
+                abort_application()
+                print("Complex application, This listing has been skipped.")
+                continue
+            else:
+                # Click Submit Button
+                print("Submitting job application")
+                submit_button.click()
+            
+            time.sleep(2)
+            # Click Close Button
+            close_button = driver.find_element(by=By.CLASS_NAME, value="artdeco-modal__dismiss")
+            close_button.click()
 
-    time.sleep(2)
-    # Click Discard Button
-    discard_button = driver.find_elements(by=By.CLASS_NAME, value="artdeco-modal__confirm-dialog-btn")[1]
-    discard_button.click()
+
+        except NoSuchElementException:
+            print("DRIVER COULD NOT APPLY TO JOB")
+            abort_application()
+            continue
+
+    
+    print("ALL JOB LISTINGS HAVE BEEN PROCCESSED")
+    time.sleep(5)
+    driver.quit()
+
+
     
     
 # Keep the browser open if the script crashes.
@@ -113,6 +159,7 @@ time.sleep(5)
 all_listings = driver.find_elements(by=By.CSS_SELECTOR, value=".job-card-container--clickable")
 
 if all_listings:
+    print("Starting the job application process...")
     apply_to_jobs(driver,all_listings)
 else:
     print("COULD NOT FIND JOB LISTINGS ELEMENT")
