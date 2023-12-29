@@ -1,4 +1,5 @@
 import os
+import csv
 import selenium
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
@@ -24,6 +25,21 @@ email = os.environ["ACCOUNT_EMAIL"]
 pw = os.environ["ACCOUNT_PASSWORD"]
 phone = os.environ["PHONE"]
 url = os.environ["URL"]
+
+def create_or_check_csv():
+    csv_file = 'nomadJobHunter_applications.csv'
+    if not os.path.isfile(csv_file):
+        with open(csv_file, 'w', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow(["Job Title", "Company Name", "Job Details", "Date Applied", "Status"])
+    return csv_file
+
+def add_job_application_to_csv(job_title, company_name, job_details, csv_file):
+    print("Writing Submitted Job Application to CSV")
+    with open(csv_file, 'a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([job_title, company_name, job_details, time.strftime("%Y-%m-%d"), "Applied"])
+
 
 print(email)
 
@@ -79,56 +95,97 @@ def user_sign_in(driver,email,pw,phone):
 
 
 def apply_to_jobs(driver,all_listings):
+    current_page = 1  
     wait = WebDriverWait(driver, 10)  
-    # APPLY FOR JOBS
-    for listing in all_listings:
-        print("Listing Opening...")
-        print(listing)
-        driver.execute_script("arguments[0].scrollIntoView(true);", listing)
-        try:
-            wait.until(EC.element_to_be_clickable(listing))
-            listing.click()
-        except ElementClickInterceptedException:
-            driver.execute_script("arguments[0].click();", listing)
-        time.sleep(2)
-        try:
-            # Click Apply Button
-            apply_button = driver.find_element(by=By.CSS_SELECTOR, value=".jobs-s-apply button")
-            apply_button.click()
-            # Insert Phone Number
-            # Find an <input> element where the id contains phoneNumber
-            time.sleep(5)
-            phone_input = driver.find_element(by=By.CSS_SELECTOR, value="input[id*=phoneNumber]")
-            if phone_input.text == "":
-                phone_input.clear()
-                time.sleep(1)
-                phone_input.send_keys(phone)
-            else:
-                print("COULD NOT GET PHONE INPUT FIELD")
-            
-            # Check the Submit Button
-            submit_button = driver.find_element(by=By.CSS_SELECTOR, value="artdeco-button")
-            if submit_button.get_attribute("data-control-name") == "continue_unify":
-                abort_application()
-                print("Complex application, This listing has been skipped.")
-                continue
-            else:
-                # Click Submit Button
-                print("Submitting job application")
-                submit_button.click()
-            
-            time.sleep(2)
-            # Click Close Button
-            close_button = driver.find_element(by=By.CLASS_NAME, value="artdeco-modal__dismiss")
-            close_button.click()
-
-
-        except NoSuchElementException:
-            print("DRIVER COULD NOT APPLY TO JOB")
-            abort_application()
-            continue
-
+    csv_file = create_or_check_csv()
     
+    while True:
+        all_listings = driver.find_elements(by=By.CSS_SELECTOR, value=".job-card-container--clickable")
+        if not all_listings:
+            print("No more job listings found.")
+            break
+
+        # APPLY FOR JOBS
+        for listing in all_listings:
+            print("Listing Opening...")
+            print(listing)
+            driver.execute_script("arguments[0].scrollIntoView(true);", listing)
+            try:
+                wait.until(EC.element_to_be_clickable(listing))
+                listing.click()
+            except ElementClickInterceptedException:
+                driver.execute_script("arguments[0].click();", listing)
+            time.sleep(2)
+            
+            # Get Job Listing Details 
+            try:
+                job_title = driver.find_element(by=By.XPATH, value='//*[@id="main"]/div/div[2]/div/div[2]/div/div[1]/div/div[1]/div/div[1]/div[1]/div[1]/h2')
+                if job_title:
+                    print(f"Found job title: {job_title.text}")
+
+                company_name = driver.find_element(by=By.XPATH, value='//*[@id="main"]/div/div[2]/div/div[2]/div/div[1]/div/div[1]/div/div[1]/div[1]/div[2]/div/a')
+                if company_name:
+                    print(f"Found company name: {company_name.text}")
+
+                job_details = driver.find_element(by=By.XPATH, value='//*[@id="job-details"]')
+                if job_details:
+                    print(f"Found job details")
+
+            except NoSuchElementException:
+                print("One or more elements were not found")
+                
+            try:
+                # Click Apply Button
+                apply_button = driver.find_element(by=By.CSS_SELECTOR, value=".jobs-s-apply button")
+                apply_button.click()
+                # Insert Phone Number
+                # Find an <input> element where the id contains phoneNumber
+                time.sleep(5)
+                phone_input = driver.find_element(by=By.CSS_SELECTOR, value="input[id*=phoneNumber]")
+                if phone_input.text == "":
+                    phone_input.clear()
+                    time.sleep(1)
+                    phone_input.send_keys(phone)
+                else:
+                    print("COULD NOT GET PHONE INPUT FIELD")
+                
+                # Check the Submit Button
+                submit_button = driver.find_element(by=By.XPATH, value='//*[@id="ember1015"]')
+                if submit_button.get_attribute("data-control-name") == "continue_unify":
+                    abort_application()
+                    print("Complex application, This listing has been skipped.")
+                    continue
+                else:
+                    # Click Submit Button
+                    print("Submitting job application")
+                    submit_button.click()
+                    time.sleep(3)
+                    add_job_application_to_csv(job_title, company_name, job_details, csv_file)
+                # Click Close Button
+                close_button = driver.find_element(by=By.CLASS_NAME, value="artdeco-modal__dismiss")
+                close_button.click()
+
+
+            except NoSuchElementException:
+                print("DRIVER COULD NOT APPLY TO JOB")
+                abort_application()
+                continue
+
+        current_page += 1
+        next_page_aria_label = f"Page {current_page}"
+        try:
+            # Find the 'Next' button using aria-label and click it
+            next_button_xpath = f"//button[@aria-label='{next_page_aria_label}']"
+            next_button = driver.find_element(by=By.XPATH, value=next_button_xpath)
+            if next_button:
+                next_button.click()
+                time.sleep(5)  
+            else:
+                print("No next page button found.")
+                break
+        except NoSuchElementException:
+            print(f"Reached the last page or page {current_page} not found.")
+            break
     print("ALL JOB LISTINGS HAVE BEEN PROCCESSED")
     time.sleep(5)
     driver.quit()
