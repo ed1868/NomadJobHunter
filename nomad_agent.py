@@ -70,6 +70,15 @@ def user_sign_in(driver,email,pw,phone):
         print("COULD NOT INPUT USER DETAILS INTO SIGN IN FORM")
 
 
+def apply_to_jobs(driver,all_listings):
+    wait = WebDriverWait(driver, 10)  
+    # APPLY FOR JOBS
+    for listing in all_listings:
+        print("Listing Opening...")
+        print(listing)
+        listing.click()
+        time.sleep(2)
+    
 def abort_application():
     # Click Close Button
     close_button = driver.find_element(by=By.CLASS_NAME, value="artdeco-modal__dismiss")
@@ -87,7 +96,7 @@ chrome_options.add_experimental_option("detach", True)
 
 service = ChromeService(executable_path=chrome_driver_path)
 driver = webdriver.Chrome(service=service, options=chrome_options)
-
+wait = WebDriverWait(driver, 10)  
 print("CHROMEDRIVER STARTED...")
 print("OPENING URL ")
 print(url)
@@ -98,3 +107,15 @@ driver.get(url)
 
 # SIGN IN USER
 user_sign_in(driver,email,pw,phone)
+time.sleep(5)
+
+# GET LISTINGS
+all_listings = driver.find_elements(by=By.CSS_SELECTOR, value=".job-card-container--clickable")
+
+if all_listings:
+    apply_to_jobs(driver,all_listings)
+else:
+    print("COULD NOT FIND JOB LISTINGS ELEMENT")
+
+
+
